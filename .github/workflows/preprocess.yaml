@@ -22,6 +22,21 @@ jobs:
     if: ${{ !startsWith(github.event.pull_request.head.ref, 'new_data_rrtdebug') }}
 
     steps:
+    - name: Allow only data changes from forks
+      if: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+      env:
+        BASE_REPO: ${{ github.repository }}
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      run: |
+        git fetch --no-tags "https://github.com/$BASE_REPO" "$BASE_SHA"
+        bad=$(git diff --name-only "$BASE_SHA...$HEAD_SHA" \
+          | grep -vE '^raw_data/([0-9]+|draft_[A-Za-z0-9_-]+)/[A-Za-z0-9_.-]+$' || true)
+        if [ -n "$bad" ]; then
+          echo "::error::Pull requests from forks may only change files in raw_data/<id>/:"
+          printf '%s\n' "$bad"
+          exit 1
+        fi
     - name: Checkout fork repository
       uses: actions/checkout@v3
       with:
